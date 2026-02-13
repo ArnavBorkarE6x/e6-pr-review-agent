@@ -1,0 +1,65 @@
+name: "e6data PR Review Agent"
+description: "AI-powered code review agent that posts PR summaries and inline review comments"
+author: "e6data"
+
+branding:
+  icon: "code"
+  color: "purple"
+
+inputs:
+  ai_provider:
+    description: "AI provider: 'anthropic' or 'openai'"
+    required: false
+    default: "anthropic"
+  model_primary:
+    description: "Primary model for complex file reviews"
+    required: false
+    default: "claude-sonnet-4-5-20250929"
+  model_lightweight:
+    description: "Lightweight model for simple/small changes"
+    required: false
+    default: "claude-haiku-4-5-20251001"
+  max_files:
+    description: "Maximum number of files to review per PR"
+    required: false
+    default: "50"
+  max_diff_tokens:
+    description: "Maximum tokens for diff context"
+    required: false
+    default: "120000"
+  skip_drafts:
+    description: "Skip draft PRs"
+    required: false
+    default: "true"
+  ignore_patterns:
+    description: "Comma-separated glob patterns for files to skip (added to defaults)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install -q httpx pydantic anthropic openai tiktoken
+
+    - name: Run review
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        INPUT_AI_PROVIDER: ${{ inputs.ai_provider }}
+        INPUT_MODEL_PRIMARY: ${{ inputs.model_primary }}
+        INPUT_MODEL_LIGHTWEIGHT: ${{ inputs.model_lightweight }}
+        INPUT_MAX_FILES: ${{ inputs.max_files }}
+        INPUT_MAX_DIFF_TOKENS: ${{ inputs.max_diff_tokens }}
+        INPUT_SKIP_DRAFTS: ${{ inputs.skip_drafts }}
+        INPUT_IGNORE_PATTERNS: ${{ inputs.ignore_patterns }}
+      run: python -m agent.main
+      working-directory: ${{ github.action_path }}
