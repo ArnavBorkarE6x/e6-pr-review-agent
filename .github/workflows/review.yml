@@ -40,7 +40,7 @@ jobs:
       - name: Checkout review agent
         uses: actions/checkout@v4
         with:
-          repository: e6data/pr-review-agent  # <-- point to where this repo lives
+          repository: ArnavBorkarE6x/e6-pr-review-agent
           path: .review-agent
 
       - name: Set up Python
