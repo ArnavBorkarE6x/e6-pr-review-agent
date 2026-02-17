@@ -63,5 +63,6 @@ jobs:
           INPUT_MODEL_LIGHTWEIGHT: "claude-haiku-4-5-20251001"
           INPUT_MAX_FILES: "50"
           INPUT_SKIP_DRAFTS: "true"
+          INPUT_SUGGEST_LOGGING: "true"
         run: python -m agent.main
         working-directory: .review-agent

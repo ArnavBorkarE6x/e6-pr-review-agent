@@ -64,7 +64,7 @@ async def test_full_pipeline_with_mocked_ai(sample_files):
         ]
     )
 
-    engine = ReviewEngine(ai=mock_ai, max_diff_tokens=120_000)
+    engine = ReviewEngine(ai=mock_ai, max_diff_tokens=120_000, suggest_logging=False)
 
     result = await engine.review(
         pr_number=42,
@@ -105,7 +105,7 @@ async def test_ai_returns_empty_array(sample_files):
         ]
     )
 
-    engine = ReviewEngine(ai=mock_ai)
+    engine = ReviewEngine(ai=mock_ai, suggest_logging=False)
     result = await engine.review(
         pr_number=1,
         repo="org/repo",
@@ -140,7 +140,7 @@ async def test_invalid_line_numbers_filtered(sample_files):
         ]
     )
 
-    engine = ReviewEngine(ai=mock_ai)
+    engine = ReviewEngine(ai=mock_ai, suggest_logging=False)
     result = await engine.review(
         pr_number=1,
         repo="org/repo",

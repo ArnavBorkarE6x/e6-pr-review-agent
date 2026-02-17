@@ -28,6 +28,8 @@ from agent.models import (
 )
 from agent.prompts import (
     LIGHTWEIGHT_REVIEW_PROMPT,
+    LOGGING_SUGGESTION_PROMPT,
+    LOGGING_SYSTEM_PROMPT,
     REVIEW_PROMPT,
     SUMMARY_PROMPT,
     SYSTEM_PROMPT,
@@ -53,9 +55,11 @@ class ReviewEngine:
         self,
         ai: AIClient,
         max_diff_tokens: int = 120_000,
+        suggest_logging: bool = True,
     ) -> None:
         self.ai = ai
         self.max_diff_tokens = max_diff_tokens
+        self.suggest_logging = suggest_logging
 
     async def review(
         self,
@@ -94,6 +98,14 @@ class ReviewEngine:
             files=files,
             total_usage=total_usage,
         )
+
+        # ── Logging suggestions ──────────────────────────────────────
+        if self.suggest_logging:
+            log_comments = await self._suggest_logging_for_files(
+                files=files,
+                total_usage=total_usage,
+            )
+            comments.extend(log_comments)
 
         elapsed = round(time.monotonic() - start, 2)
         log.info(
@@ -258,6 +270,102 @@ class ReviewEngine:
 
         return comments
 
+    # ── Logging suggestions ──────────────────────────────────────────────
+
+    async def _suggest_logging_for_files(
+        self,
+        *,
+        files: list[FileDiff],
+        total_usage: dict,
+    ) -> list[ReviewComment]:
+        sem = asyncio.Semaphore(MAX_CONCURRENT_REVIEWS)
+
+        async def _one(f: FileDiff) -> list[ReviewComment]:
+            async with sem:
+                return await self._suggest_logging_single_file(f, total_usage)
+
+        tasks = [_one(f) for f in files if f.patch]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        comments: list[ReviewComment] = []
+        for r in results:
+            if isinstance(r, Exception):
+                log.warning("Logging suggestion error: %s", r)
+            else:
+                comments.extend(r)
+
+        log.info("Logging suggestions: %d across %d files", len(comments), len(files))
+        return comments
+
+    async def _suggest_logging_single_file(
+        self,
+        file: FileDiff,
+        total_usage: dict,
+    ) -> list[ReviewComment]:
+        lang = file.language or "text"
+        prompt = LOGGING_SUGGESTION_PROMPT.format(
+            filename=file.filename,
+            language=lang,
+            patch=file.patch,
+        )
+
+        try:
+            data, usage = await self.ai.complete_json(
+                LOGGING_SYSTEM_PROMPT, prompt, lightweight=True, max_tokens=2000
+            )
+            _merge_usage(total_usage, usage)
+        except Exception:
+            log.exception("Logging suggestion failed for %s", file.filename)
+            return []
+
+        if not isinstance(data, list):
+            return []
+
+        line_map = parse_patch_line_map(file.patch)
+        comments: list[ReviewComment] = []
+
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            line = item.get("line")
+            log_stmt = item.get("log_statement", "").strip()
+            reason = item.get("reason", "").strip()
+            level = item.get("level", "info").strip().lower()
+            if not line or not log_stmt:
+                continue
+
+            # Validate line exists in diff
+            if line not in line_map:
+                line = find_closest_line(line, line_map)
+                if line is None:
+                    continue
+
+            level_emoji = {
+                "error": ":red_circle:",
+                "warn": ":large_orange_diamond:",
+                "info": ":blue_circle:",
+                "debug": ":white_circle:",
+            }.get(level, ":blue_circle:")
+
+            body = (
+                f":memo: **LOGGING** | {level_emoji} `{level.upper()}`\n\n"
+                f"**Suggested log statement:**\n"
+                f"```{lang}\n{log_stmt}\n```\n"
+                f"_{reason}_"
+            )
+
+            comments.append(
+                ReviewComment(
+                    path=file.filename,
+                    line=line,
+                    body=body,
+                    severity=ReviewSeverity.SUGGESTION,
+                    category=ReviewCategory.LOGGING,
+                )
+            )
+
+        return comments
+
 
 # ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -305,15 +413,22 @@ def format_summary_body(summary: PRSummary, result: ReviewResult) -> str:
         lines.append("")
         lines.append(f"**Tests:** {summary.test_coverage_note}")
 
+    review_count = sum(1 for c in result.comments if c.category != ReviewCategory.LOGGING)
+    logging_count = sum(1 for c in result.comments if c.category == ReviewCategory.LOGGING)
+
+    stats_parts = [
+        f":page_facing_up: {result.files_reviewed} file(s) reviewed",
+        f":speech_balloon: {review_count} review comment(s)",
+    ]
+    if logging_count:
+        stats_parts.append(f":memo: {logging_count} logging suggestion(s)")
+    stats_parts.append(f":stopwatch: {result.duration_seconds}s")
+
     lines.extend(
         [
             "",
             "---",
-            "<sub>"
-            f":page_facing_up: {result.files_reviewed} file(s) reviewed "
-            f"| :speech_balloon: {len(result.comments)} comment(s) "
-            f"| :stopwatch: {result.duration_seconds}s"
-            "</sub>",
+            "<sub>" + " | ".join(stats_parts) + "</sub>",
             "",
             "<sub>:thumbsup: / :thumbsdown: on review comments helps us improve</sub>",
         ]

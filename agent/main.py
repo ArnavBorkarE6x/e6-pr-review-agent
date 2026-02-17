@@ -73,6 +73,7 @@ async def run() -> None:
     max_files = int(_get_env("INPUT_MAX_FILES", "50"))
     skip_drafts = _get_env("INPUT_SKIP_DRAFTS", "true").lower() == "true"
     max_diff_tokens = int(_get_env("INPUT_MAX_DIFF_TOKENS", "120000"))
+    suggest_logging = _get_env("INPUT_SUGGEST_LOGGING", "true").lower() == "true"
 
     gh = GitHubClient(github_token)
     try:
@@ -87,6 +88,7 @@ async def run() -> None:
             max_files=max_files,
             skip_drafts=skip_drafts,
             max_diff_tokens=max_diff_tokens,
+            suggest_logging=suggest_logging,
         )
     finally:
         await gh.close()
@@ -104,6 +106,7 @@ async def _run_review(
     max_files: int,
     skip_drafts: bool,
     max_diff_tokens: int,
+    suggest_logging: bool = True,
 ) -> None:
     # ── Fetch PR metadata ───────────────────────────────────────────────
     pr = await gh.get_pr(repo, pr_number)
@@ -139,7 +142,7 @@ async def _run_review(
         model_primary=model_primary,
         model_lightweight=model_light,
     )
-    engine = ReviewEngine(ai=ai, max_diff_tokens=max_diff_tokens)
+    engine = ReviewEngine(ai=ai, max_diff_tokens=max_diff_tokens, suggest_logging=suggest_logging)
 
     result = await engine.review(
         pr_number=pr_number,

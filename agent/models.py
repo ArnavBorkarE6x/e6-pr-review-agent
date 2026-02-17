@@ -24,6 +24,7 @@ class ReviewCategory(StrEnum):
     LOGIC = "logic"
     CONCURRENCY = "concurrency"
     RESOURCE_MANAGEMENT = "resource_management"
+    LOGGING = "logging"
 
 
 class FileDiff(BaseModel):

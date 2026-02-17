@@ -59,7 +59,7 @@ class TestFormatSummaryBody:
         assert "Error path untested" in body
         assert "Tests added" in body
         assert "3 file(s) reviewed" in body
-        assert "1 comment(s)" in body
+        assert "1 review comment(s)" in body
         assert "12.5s" in body
 
     def test_skipped_files_collapsible(self):
@@ -89,4 +89,4 @@ class TestFormatSummaryBody:
         )
         body = format_summary_body(summary, result)
         assert "Simple fix" in body
-        assert "0 comment(s)" in body
+        assert "0 review comment(s)" in body
