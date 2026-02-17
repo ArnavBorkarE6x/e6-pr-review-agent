@@ -135,6 +135,9 @@ async def _run_review(
         log.info("No reviewable files in PR #%d", pr_number)
         return
 
+    # ── Clean up old review comments ─────────────────────────────────────
+    await gh.cleanup_previous_reviews(repo, pr_number)
+
     # ── Run review engine ───────────────────────────────────────────────
     ai = AIClient(
         provider=ai_provider,
