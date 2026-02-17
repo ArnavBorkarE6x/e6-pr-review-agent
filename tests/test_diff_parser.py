@@ -6,6 +6,7 @@ from agent.diff_parser import (
     compress_diff_for_summary,
     count_tokens,
     detect_language,
+    extract_line_content,
     find_closest_line,
     is_binary,
     parse_patch_line_map,
@@ -104,6 +105,20 @@ class TestFindClosestLine:
 
     def test_empty_map(self):
         assert find_closest_line(10, {}) is None
+
+
+class TestExtractLineContent:
+    def test_strips_plus_prefix(self):
+        line_map = {5: "+    int x = 10;"}
+        assert extract_line_content(5, line_map) == "    int x = 10;"
+
+    def test_missing_line_returns_none(self):
+        line_map = {5: "+code"}
+        assert extract_line_content(99, line_map) is None
+
+    def test_empty_line(self):
+        line_map = {3: "+"}
+        assert extract_line_content(3, line_map) == ""
 
 
 class TestCountTokens:

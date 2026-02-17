@@ -96,7 +96,7 @@ async def test_logging_suggestions_returned(java_file):
         assert c.category == ReviewCategory.LOGGING
         assert c.severity == ReviewSeverity.SUGGESTION
         assert "LOGGING" in c.body
-        assert "```java" in c.body
+        assert "```suggestion" in c.body
 
 
 @pytest.mark.asyncio
@@ -299,6 +299,52 @@ def test_summary_body_hides_logging_when_zero():
     body = format_summary_body(summary, result)
     assert "1 review comment(s)" in body
     assert "logging" not in body.lower()
+
+
+@pytest.mark.asyncio
+async def test_logging_suggestion_block_format(java_file):
+    """Logging suggestions should use GitHub suggestion block with original line."""
+    summary_response = {"purpose": "Test", "changes": ["Change"]}
+    review_response = []
+    logging_response = [
+        {
+            "line": 10,
+            "level": "debug",
+            "log_statement": 'LOG.debug("process() called");',
+            "reason": "Trace entry point",
+        },
+    ]
+
+    mock_ai = AsyncMock()
+    mock_ai.complete_json = AsyncMock(
+        side_effect=[
+            (summary_response, {"input_tokens": 100, "output_tokens": 50, "model": "test"}),
+            (review_response, {"input_tokens": 100, "output_tokens": 10, "model": "test"}),
+            (logging_response, {"input_tokens": 100, "output_tokens": 50, "model": "test"}),
+        ]
+    )
+
+    engine = ReviewEngine(ai=mock_ai, suggest_logging=True)
+    result = await engine.review(
+        pr_number=1,
+        repo="org/repo",
+        head_sha="sha",
+        title="Test",
+        body=None,
+        author="dev",
+        additions=15,
+        deletions=0,
+        files=java_file,
+        skipped_files=[],
+    )
+
+    assert len(result.comments) == 1
+    body = result.comments[0].body
+    # Should contain the GitHub suggestion block with original line + log statement
+    assert "```suggestion" in body
+    # Line 10 is "    public void process(Chunk chunk, Query query) {"
+    assert "public void process" in body
+    assert 'LOG.debug("process() called");' in body
 
 
 @pytest.mark.asyncio

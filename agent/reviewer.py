@@ -15,6 +15,7 @@ import time
 from agent.ai_client import AIClient
 from agent.diff_parser import (
     compress_diff_for_summary,
+    extract_line_content,
     find_closest_line,
     parse_patch_line_map,
 )
@@ -341,18 +342,28 @@ class ReviewEngine:
                     continue
 
             level_emoji = {
-                "error": ":red_circle:",
-                "warn": ":large_orange_diamond:",
-                "info": ":blue_circle:",
-                "debug": ":white_circle:",
-            }.get(level, ":blue_circle:")
+                "error": "\U0001f534",
+                "warn": "\U0001f7e0",
+                "info": "\U0001f535",
+                "debug": "\u26aa",
+            }.get(level, "\U0001f535")
 
-            body = (
-                f":memo: **LOGGING** | {level_emoji} `{level.upper()}`\n\n"
-                f"**Suggested log statement:**\n"
-                f"```{lang}\n{log_stmt}\n```\n"
-                f"_{reason}_"
-            )
+            # Build the GitHub suggestion block if we can extract the original line
+            original_content = extract_line_content(line, line_map)
+            if original_content is not None:
+                suggestion = (
+                    f"\U0001f4dd **LOGGING** | {level_emoji} `{level.upper()}`\n\n"
+                    f"_{reason}_\n\n"
+                    f"```suggestion\n{original_content}\n{log_stmt}\n```"
+                )
+            else:
+                suggestion = (
+                    f"\U0001f4dd **LOGGING** | {level_emoji} `{level.upper()}`\n\n"
+                    f"```{lang}\n{log_stmt}\n```\n"
+                    f"_{reason}_"
+                )
+
+            body = suggestion
 
             comments.append(
                 ReviewComment(

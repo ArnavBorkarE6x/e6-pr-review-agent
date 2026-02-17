@@ -171,6 +171,17 @@ def parse_patch_line_map(patch: str) -> dict[int, str]:
     return line_map
 
 
+def extract_line_content(line: int, line_map: dict[int, str]) -> str | None:
+    """Return the source content of a diff line (without the leading '+')."""
+    raw = line_map.get(line)
+    if raw is None:
+        return None
+    # Strip the leading '+' from the diff line
+    if raw.startswith("+"):
+        return raw[1:]
+    return raw
+
+
 def find_closest_line(target: int, line_map: dict[int, str]) -> int | None:
     """Find the closest valid diff line within 3 lines of the target."""
     if not line_map:
